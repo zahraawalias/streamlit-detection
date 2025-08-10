@@ -3,6 +3,7 @@ tensorflow==2.19.0
 keras==3.5.0
 numpy
 pandas
+pickle-mixin
 scikit-learn
 nltk
 matplotlib
