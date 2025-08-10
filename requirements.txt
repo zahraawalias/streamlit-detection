@@ -1,11 +1,9 @@
 streamlit
 tensorflow
-gensim
-numpy
-pandas
-scikit-learn
-matplotlib
-nltk
 nlpaug
-joblib
+scikit-learn
+pandas
+numpy
+matplotlib
 seaborn
+joblib
