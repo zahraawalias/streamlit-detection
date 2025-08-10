@@ -4,6 +4,6 @@ keras==3.5.0
 numpy
 pandas
 pickle-mixin
-scikit-learn
+scikit-learn==1.7.1
 nltk
 matplotlib
