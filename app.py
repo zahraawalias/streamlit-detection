@@ -76,18 +76,28 @@ if st.button("Deteksi"):
         with st.spinner("Memproses..."):
             results = predict_text(user_input)
 
-        st.subheader("Hasil Deteksi")
-        st.write(f"**Teks setelah preprocessing:** {results['clean_text']}")
-        st.write(f"**Label Binary:** {results['pred_binary_label'].upper()}")
-        st.write(f"**Probabilitas Binary:** {results['pred_binary_prob']:.4f}")
+        # Bagian label utama
+        pred_binary = results['pred_binary_label'].upper()
+        prob_binary = results['pred_binary_prob']
+        clean_text = results['clean_text']
 
-        if results['pred_multi_label']:
-            st.write(f"**Label Multiclass:** {results['pred_multi_label'].upper()}")
-            st.write("**Probabilitas tiap kelas:**")
-            prob_df = pd.DataFrame({
-                "Kelas": le_multi.classes_,
-                "Probabilitas": [round(p, 4) for p in results['pred_multi_prob']]
-            })
-            st.table(prob_df)
+        # Teks awal
+        output_text = f"Teks termasuk klasifikasi: {pred_binary}\n"
+        output_text += f"Teks (setelah preprocessing): {clean_text}\n"
+
+        # Jika abusive → tampilkan label multikelas
+        if pred_binary.lower() == 'abusive':
+            pred_multi = results['pred_multi_label'].upper()
+            multi_probs = results['pred_multi_prob']
+
+            output_text += f"Hasil Deteksi: {pred_binary} ({pred_multi})\n"
+            output_text += f"Probabilitas Klasifikasi Biner: {prob_binary:.2f}\n"
+            output_text += "Probabilitas setiap kelas Multiclass:\n"
+            for idx, cls in enumerate(le_multi.classes_):
+                output_text += f"- {cls}: {multi_probs[idx]:.2f}\n"
         else:
-            st.info("Teks ini diprediksi NOT ABUSIVE, jadi tidak ada klasifikasi multikelas.")
+            output_text += f"Hasil Deteksi: {pred_binary}\n"
+            output_text += f"Probabilitas Klasifikasi Biner: {prob_binary:.2f}\n"
+            output_text += "Tidak dilakukan klasifikasi multikelas karena teks ini diprediksi NOT ABUSIVE."
+
+        st.code(output_text)
