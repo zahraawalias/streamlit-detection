@@ -77,27 +77,29 @@ if st.button("Deteksi"):
             results = predict_text(user_input)
 
         # Bagian label utama
-        pred_binary = results['pred_binary_label'].upper()
+        pred_binary = results['pred_binary_label'].capitalize()  # tampilkan dengan huruf awal besar
         prob_binary = results['pred_binary_prob']
         clean_text = results['clean_text']
 
-        # Teks awal
-        output_text = f"Teks termasuk klasifikasi: {pred_binary}\n"
-        output_text += f"Teks (setelah preprocessing): {clean_text}\n"
-
-        # Jika abusive → tampilkan label multikelas
+        # Format output
+        output_text = f"Teks:\n{clean_text}\n\n"
         if pred_binary.lower() == 'abusive':
-            pred_multi = results['pred_multi_label'].upper()
+            pred_multi = results['pred_multi_label'].capitalize()
             multi_probs = results['pred_multi_prob']
 
-            output_text += f"Hasil Deteksi: {pred_binary} ({pred_multi})\n"
-            output_text += f"Probabilitas Klasifikasi Biner: {prob_binary:.2f}\n"
-            output_text += "Probabilitas setiap kelas Multiclass:\n"
+            output_text += f"Hasil Deteksi Akhir: {pred_binary} ({pred_multi})\n\n"
+            output_text += "Probabilitas Klasifikasi Biner:\n"
+            output_text += f"- Abusive: {prob_binary[0]:.4f}\n"  # asumsi prob_binary = [prob_abusive, prob_not_abusive]
+            output_text += f"- Not Abusive: {prob_binary[1]:.4f}\n\n"
+
+            output_text += "Probabilitas Klasifikasi Multikelas:\n"
             for idx, cls in enumerate(le_multi.classes_):
-                output_text += f"- {cls}: {multi_probs[idx]:.2f}\n"
+                output_text += f"- {cls}: {multi_probs[idx]:.4f}\n"
         else:
-            output_text += f"Hasil Deteksi: {pred_binary}\n"
-            output_text += f"Probabilitas Klasifikasi Biner: {prob_binary:.2f}\n"
+            output_text += f"Hasil Deteksi Akhir: {pred_binary}\n\n"
+            output_text += "Probabilitas Klasifikasi Biner:\n"
+            output_text += f"- Abusive: {prob_binary[0]:.4f}\n"
+            output_text += f"- Not Abusive: {prob_binary[1]:.4f}\n\n"
             output_text += "Tidak dilakukan klasifikasi multikelas karena teks ini diprediksi NOT ABUSIVE."
 
         st.code(output_text)
