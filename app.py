@@ -1,65 +1,59 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
 import pickle
 import joblib
+import re
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import re
 
 # ====== Load Resources ======
 @st.cache_resource
 def load_artifacts():
-    # Load tokenizer
     with open("tokenizer.pkl", "rb") as f:
         tokenizer = pickle.load(f)
-    # Load label encoders
     le_binary = joblib.load("binary_label_encoder.pkl")
     le_multi = joblib.load("multiclass_label_encoder.pkl")
-    # Load models
     model_binary = load_model("model_binary.h5")
     model_multi = load_model("model_multiclass.h5")
     return tokenizer, le_binary, le_multi, model_binary, model_multi
 
 tokenizer, le_binary, le_multi, model_binary, model_multi = load_artifacts()
-
 max_len = 256
 
-# ====== Preprocessing text function ======
+# ====== Preprocessing ======
 def preprocess_text(text):
     text = text.lower()
-    text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)  # remove urls
-    text = re.sub(r'\@\w+|\#','', text)  # remove @mentions and hashtags
-    text = re.sub(r'[^a-zA-Z\s]', '', text)  # keep only letters and spaces
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"http\S+|www\S+|https\S+", "", text)
+    text = re.sub(r"@\w+|#", "", text)
+    text = re.sub(r"[^a-zA-Z\s]", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
-# ====== Perbaikan pada Predict function (predict_text) ======
+# ====== Prediction Function ======
 def predict_text(text):
     clean_text = preprocess_text(text)
     seq = tokenizer.texts_to_sequences([clean_text])
-    padded = pad_sequences(seq, maxlen=max_len, padding='post', truncating='post')
+    padded = pad_sequences(seq, maxlen=max_len, padding="post", truncating="post")
 
-    # Prediksi Binary (nilai sigmoid untuk kelas bernomor 1)
+    # ===== Binary prediction =====
     pred_binary_prob = float(model_binary.predict(padded)[0][0])
 
-    # Tentukan label untuk index 0 dan 1 (aman jika mapping kelas kebalik)
+    # Amankan mapping label encoder
     label_idx0 = le_binary.inverse_transform([0])[0]
     label_idx1 = le_binary.inverse_transform([1])[0]
 
-    # Buat mapping label -> probabilitas
-    # model memberi prob untuk label_idx1 (index=1), sedangkan label_idx0 = 1 - prob
+    # Buat mapping probabilitas label
     prob_by_label = {
         label_idx1: pred_binary_prob,
         label_idx0: 1.0 - pred_binary_prob
     }
 
-    # Tentukan prediksi akhir berdasarkan threshold (default 0.5)
+    # Tentukan label hasil prediksi
     pred_index = 1 if pred_binary_prob > 0.5 else 0
     pred_binary_label = le_binary.inverse_transform([pred_index])[0]
 
-    # Multiclass hanya jika predicted abusive (label sesuai nama kelas 'abusive')
-    if pred_binary_label.lower().startswith('abusive'):
+    # ===== Multiclass prediction (hanya jika abusive) =====
+    if pred_binary_label.lower().startswith("abusive"):
         pred_multi_prob = model_multi.predict(padded)[0]
         pred_multi_idx = int(np.argmax(pred_multi_prob))
         pred_multi_label = le_multi.inverse_transform([pred_multi_idx])[0]
@@ -67,25 +61,24 @@ def predict_text(text):
         pred_multi_label, pred_multi_prob = None, None
 
     return {
-        "clean_text": clean_text,
         "pred_binary_label": pred_binary_label,
         "pred_binary_prob": pred_binary_prob,
         "prob_by_label": prob_by_label,
         "pred_multi_label": pred_multi_label,
-        "pred_multi_prob": pred_multi_prob.tolist() if pred_multi_prob is not None else None
+        "pred_multi_prob": pred_multi_prob.tolist() if pred_multi_prob is not None else None,
     }
-
-
 
 # ====== Streamlit UI ======
 st.title("Deteksi Ujaran Kekerasan dan Klasifikasi Multiclass")
+st.caption("Versi build: 00b745a — revisi sblm cetak")
 
 st.markdown("""
-Masukkan teks untuk dideteksi apakah mengandung ujaran kekerasan (abusive) atau tidak (not abusive).  
-Jika abusive, sistem juga akan mengklasifikasikan jenis ujaran kekerasannya (fisik, ekonomi, psikologis, seksual).
+Masukkan teks untuk dideteksi apakah mengandung ujaran kekerasan (abusive) atau tidak.  
+Jika **abusive**, sistem juga akan mengklasifikasikan jenis ujaran kekerasannya (fisik, ekonomi, psikologis, atau seksual).
 """)
 
 user_input = st.text_area("Masukkan teks di sini:", height=150)
+
 if st.button("Deteksi"):
     if not user_input.strip():
         st.warning("Teks input tidak boleh kosong!")
@@ -93,35 +86,30 @@ if st.button("Deteksi"):
         with st.spinner("Memproses..."):
             results = predict_text(user_input)
 
-        # Bagian label utama
-        pred_binary = results['pred_binary_label'].capitalize()  # tampilkan dengan huruf awal besar
-        prob_binary_val = results['pred_binary_prob']
-        clean_text = results['clean_text']
-
-        # Hitung probabilitas biner lengkap
+        pred_binary = results["pred_binary_label"].capitalize()
+        prob_binary_val = results["pred_binary_prob"]
         prob_abusive = prob_binary_val
         prob_not_abusive = 1 - prob_binary_val
 
-        # Format output
-        output_text = f"Teks:\n{clean_text}\n\n"
+        output_text = ""
 
-        if pred_binary.lower() == 'abusive':
-            pred_multi = results['pred_multi_label'].capitalize()
-            multi_probs = results['pred_multi_prob']
+        if pred_binary.lower() == "abusive":
+            pred_multi = results["pred_multi_label"].capitalize()
+            multi_probs = results["pred_multi_prob"]
 
-            output_text += f"Hasil Deteksi Akhir: {pred_binary} ({pred_multi})\n\n"
-            output_text += "Probabilitas Klasifikasi Biner:\n"
+            output_text += f"**Hasil Deteksi Akhir:** {pred_binary} ({pred_multi})\n\n"
+            output_text += f"**Probabilitas Klasifikasi Biner:**\n"
             output_text += f"- Abusive: {prob_abusive:.4f}\n"
             output_text += f"- Not Abusive: {prob_not_abusive:.4f}\n\n"
-
-            output_text += "Probabilitas Klasifikasi Multikelas:\n"
+            output_text += "**Probabilitas Klasifikasi Multikelas:**\n"
             for idx, cls in enumerate(le_multi.classes_):
                 output_text += f"- {cls}: {multi_probs[idx]:.4f}\n"
+
         else:
-            output_text += f"Hasil Deteksi Akhir: {pred_binary}\n\n"
-            output_text += "Probabilitas Klasifikasi Biner:\n"
+            output_text += f"**Hasil Deteksi Akhir:** {pred_binary}\n\n"
+            output_text += f"**Probabilitas Klasifikasi Biner:**\n"
             output_text += f"- Abusive: {prob_abusive:.4f}\n"
             output_text += f"- Not Abusive: {prob_not_abusive:.4f}\n\n"
-            output_text += "Tidak dilakukan klasifikasi multikelas karena teks ini diprediksi NOT ABUSIVE."
+            output_text += "_Tidak dilakukan klasifikasi multikelas karena teks ini diprediksi NOT ABUSIVE._"
 
-        st.code(output_text)
+        st.markdown(output_text)
