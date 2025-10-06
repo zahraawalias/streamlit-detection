@@ -34,29 +34,29 @@ def preprocess_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-# ====== Predict function ======
+# ====== Perbaikan pada Predict function (predict_text) ======
 def predict_text(text):
     clean_text = preprocess_text(text)
     seq = tokenizer.texts_to_sequences([clean_text])
     padded = pad_sequences(seq, maxlen=max_len, padding='post', truncating='post')
 
-    # Prediksi Binary
-    pred_binary_prob = float(model_binary.predict(padded)[0][0])  # nilai asli
-    pred_binary_label = le_binary.inverse_transform([1 if pred_binary_prob > 0.5 else 0])[0]
+    # 1. Prediksi Binary
+    pred_binary_prob = float(model_binary.predict(padded)[0][0])
+    # Ambang batas 0.5: 1 untuk Abusive, 0 untuk Not Abusive
+    pred_binary_idx = 1 if pred_binary_prob > 0.5 else 0 
+    pred_binary_label = le_binary.inverse_transform([pred_binary_idx])[0]
 
-    if pred_binary_label == 'not_abusive':
-        pred_multi_label, pred_multi_prob = None, None
-    else:
-        pred_multi_prob = model_multi.predict(padded)[0]
-        pred_multi_idx = int(np.argmax(pred_multi_prob))
-        pred_multi_label = le_multi.inverse_transform([pred_multi_idx])[0]
+    # 2. Prediksi Multiclass (Selalu prediksi, walaupun biner Not Abusive)
+    pred_multi_prob = model_multi.predict(padded)[0]
+    pred_multi_idx = int(np.argmax(pred_multi_prob))
+    pred_multi_label = le_multi.inverse_transform([pred_multi_idx])[0]
 
     return {
         "clean_text": clean_text,
         "pred_binary_label": pred_binary_label,
         "pred_binary_prob": pred_binary_prob,
         "pred_multi_label": pred_multi_label,
-        "pred_multi_prob": pred_multi_prob.tolist() if pred_multi_prob is not None else None
+        "pred_multi_prob": pred_multi_prob.tolist()
     }
 
 
