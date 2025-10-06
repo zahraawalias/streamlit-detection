@@ -40,24 +40,41 @@ def predict_text(text):
     seq = tokenizer.texts_to_sequences([clean_text])
     padded = pad_sequences(seq, maxlen=max_len, padding='post', truncating='post')
 
-    # 1. Prediksi Binary
+    # Prediksi Binary (nilai sigmoid untuk kelas bernomor 1)
     pred_binary_prob = float(model_binary.predict(padded)[0][0])
-    # Ambang batas 0.5: 1 untuk Abusive, 0 untuk Not Abusive
-    pred_binary_idx = 1 if pred_binary_prob > 0.5 else 0 
-    pred_binary_label = le_binary.inverse_transform([pred_binary_idx])[0]
 
-    # 2. Prediksi Multiclass (Selalu prediksi, walaupun biner Not Abusive)
-    pred_multi_prob = model_multi.predict(padded)[0]
-    pred_multi_idx = int(np.argmax(pred_multi_prob))
-    pred_multi_label = le_multi.inverse_transform([pred_multi_idx])[0]
+    # Tentukan label untuk index 0 dan 1 (aman jika mapping kelas kebalik)
+    label_idx0 = le_binary.inverse_transform([0])[0]
+    label_idx1 = le_binary.inverse_transform([1])[0]
+
+    # Buat mapping label -> probabilitas
+    # model memberi prob untuk label_idx1 (index=1), sedangkan label_idx0 = 1 - prob
+    prob_by_label = {
+        label_idx1: pred_binary_prob,
+        label_idx0: 1.0 - pred_binary_prob
+    }
+
+    # Tentukan prediksi akhir berdasarkan threshold (default 0.5)
+    pred_index = 1 if pred_binary_prob > 0.5 else 0
+    pred_binary_label = le_binary.inverse_transform([pred_index])[0]
+
+    # Multiclass hanya jika predicted abusive (label sesuai nama kelas 'abusive')
+    if pred_binary_label.lower().startswith('abusive'):
+        pred_multi_prob = model_multi.predict(padded)[0]
+        pred_multi_idx = int(np.argmax(pred_multi_prob))
+        pred_multi_label = le_multi.inverse_transform([pred_multi_idx])[0]
+    else:
+        pred_multi_label, pred_multi_prob = None, None
 
     return {
         "clean_text": clean_text,
         "pred_binary_label": pred_binary_label,
         "pred_binary_prob": pred_binary_prob,
+        "prob_by_label": prob_by_label,
         "pred_multi_label": pred_multi_label,
-        "pred_multi_prob": pred_multi_prob.tolist()
+        "pred_multi_prob": pred_multi_prob.tolist() if pred_multi_prob is not None else None
     }
+
 
 
 # ====== Streamlit UI ======
